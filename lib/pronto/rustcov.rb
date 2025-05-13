@@ -6,7 +6,8 @@ module Pronto
       return [] unless @patches
 
       lcov = parse_lcov('target/lcov.info')
-      messages = []
+
+      grouped = Hash.new { |h, k| h[k] = [] }
 
       @patches.each do |patch|
         next unless patch.added_lines.any?
@@ -16,19 +17,28 @@ module Pronto
 
         patch.added_lines.each do |line|
           if uncovered.include?(line.new_lineno)
-            messages << Message.new(
-              patch.new_file_path,
-              line,
-              :warning,
-              "⚠️ Tests are missing.",
-              nil,
-              self.class
-            )
+            grouped[patch].push(line)
           end
         end
       end
 
-      messages
+      grouped.map do |patch, lines|
+        linenos = lines.map(&:new_lineno).sort
+        ranges = linenos.chunk_while { |i, j| j == i + 1 }
+                        .map { |group| group.size > 1 ? "#{group.first}–#{group.last}" : group.first.to_s }
+
+        message_text = "⚠️ Test coverage is missing for lines: #{ranges.join(', ')}"
+
+        # Attach the message to the first uncovered line
+        Pronto::Message.new(
+          patch.new_file_path,
+          lines.first,
+          :warning,
+          message_text,
+          nil,
+          self.class
+        )
+      end
     end
 
     private
