@@ -3,58 +3,15 @@ require 'pronto'
 module Pronto
   class Rustcov < Runner
     def run
-      if ENV['PRONTO_RUSTCOV_URL']
-        one_message_per_file_markdown('target/lcov.info', ENV['PRONTO_RUSTCOV_URL'])
-      else
-        one_message_per_file('target/lcov.info')
-      end
+      one_message_per_file('target/lcov.info')
     end
 
-    def messages_limit
-      ENV['PRONTO_RUSTCOV_MESSAGES_LIMIT']&.to_i || 10
+    def pronto_files_limit
+      ENV['PRONTO_RUSTCOV_FILES_LIMIT']&.to_i || 5
     end
 
-    def one_message_per_file_markdown(lcov_path, base_url)
-      base_url = base_url.delete_suffix('/')
-
-      return [] unless @patches
-
-      lcov = parse_lcov(lcov_path)
-
-      grouped = Hash.new { |h, k| h[k] = [] }
-
-      @patches.sort_by { |patch| -patch.added_lines.count }.take(messages_limit).each do |patch|
-        next unless patch.added_lines.any?
-        file_path = patch.new_file_full_path.to_s
-        uncovered = lcov[file_path]
-        next unless uncovered
-
-        patch.added_lines.each do |line|
-          if uncovered.include?(line.new_lineno)
-            grouped[patch].push(line)
-          end
-        end
-      end
-
-      grouped.map do |patch, lines|
-        linenos = lines.map(&:new_lineno).sort
-        ranges = linenos.chunk_while { |i, j| j == i + 1 }
-                        .map { |group| group.size > 1 ? "#{group.first}–#{group.last}" : group.first.to_s }
-
-        url = "#{base_url}/#{patch.new_file_path}.html#L#{linenos.first}"
-        first_range_link = "[#{ranges.first}](#{url})"
-        message_text = "⚠️ Test coverage is missing for lines: #{first_range_link}, #{ranges[1..].join(', ')}"
-
-        # Attach the message to the first uncovered line
-        Pronto::Message.new(
-          patch.new_file_path,
-          lines.first,
-          :warning,
-          message_text,
-          nil,
-          self.class
-        )
-      end
+    def pronto_messages_per_file_limit
+      ENV['PRONTO_RUSTCOV_MESSAGES_PER_FILE_LIMIT']&.to_i || 5
     end
 
     def one_message_per_file(lcov_path)
@@ -64,7 +21,7 @@ module Pronto
 
       grouped = Hash.new { |h, k| h[k] = [] }
 
-      @patches.sort_by { |patch| -patch.added_lines.count }.take(messages_limit).each do |patch|
+      @patches.sort_by { |patch| -patch.added_lines.count }.take(pronto_files_limit).each do |patch|
         next unless patch.added_lines.any?
         file_path = patch.new_file_full_path.to_s
         uncovered = lcov[file_path]
@@ -80,6 +37,7 @@ module Pronto
       grouped.map do |patch, lines|
         linenos = lines.map(&:new_lineno).sort
         ranges = linenos.chunk_while { |i, j| j == i + 1 }
+                        .take(pronto_messages_per_file_limit)
                         .map { |group| group.size > 1 ? "#{group.first}–#{group.last}" : group.first.to_s }
 
         message_text = "⚠️ Test coverage is missing for lines: #{ranges.join(', ')}"
