@@ -10,6 +10,10 @@ module Pronto
       end
     end
 
+    def messages_limit
+      ENV['PRONTO_RUSTCOV_MESSAGES_LIMIT']&.to_i || 10
+    end
+
     def one_message_per_file_markdown(lcov_path, base_url)
       base_url = base_url.delete_suffix('/')
 
@@ -19,7 +23,7 @@ module Pronto
 
       grouped = Hash.new { |h, k| h[k] = [] }
 
-      @patches.each do |patch|
+      @patches.sort_by { |patch| -patch.added_lines.count }.take(messages_limit).each do |patch|
         next unless patch.added_lines.any?
         file_path = patch.new_file_full_path.to_s
         uncovered = lcov[file_path]
@@ -60,7 +64,7 @@ module Pronto
 
       grouped = Hash.new { |h, k| h[k] = [] }
 
-      @patches.each do |patch|
+      @patches.sort_by { |patch| -patch.added_lines.count }.take(messages_limit).each do |patch|
         next unless patch.added_lines.any?
         file_path = patch.new_file_full_path.to_s
         uncovered = lcov[file_path]

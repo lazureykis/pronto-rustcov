@@ -1,7 +1,7 @@
 # pronto-rustcov.gemspec
 Gem::Specification.new do |spec|
   spec.name          = "pronto-rustcov"
-  spec.version       = "0.1.3"
+  spec.version       = "0.1.4"
   spec.authors       = ["Pavel Lazureykis"]
   spec.email         = ["pavel@lazureykis.dev"]
 
