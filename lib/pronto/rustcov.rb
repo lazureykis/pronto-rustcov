@@ -3,7 +3,13 @@ require 'pronto'
 module Pronto
   class Rustcov < Runner
     def run
-      one_message_per_file('target/lcov.info')
+      one_message_per_file(lcov_path)
+    end
+
+    private
+
+    def lcov_path
+      ENV['PRONTO_RUSTCOV_LCOV_PATH'] || ENV['LCOV_PATH'] || 'target/lcov.info'
     end
 
     def pronto_files_limit
@@ -19,9 +25,15 @@ module Pronto
 
       lcov = parse_lcov(lcov_path)
 
+      grouped = group_patches(@patches, lcov)
+
+      build_messages(grouped)
+    end
+
+    def group_patches(patches, lcov)
       grouped = Hash.new { |h, k| h[k] = [] }
 
-      @patches.sort_by { |patch| -patch.added_lines.count }.take(pronto_files_limit).each do |patch|
+      patches.sort_by { |patch| -patch.added_lines.count }.take(pronto_files_limit).each do |patch|
         next unless patch.added_lines.any?
         file_path = patch.new_file_full_path.to_s
         uncovered = lcov[file_path]
@@ -34,41 +46,66 @@ module Pronto
         end
       end
 
-      grouped.map do |patch, lines|
-        linenos = lines.map(&:new_lineno).sort
-        ranges = linenos.chunk_while { |i, j| j == i + 1 }
-                        .take(pronto_messages_per_file_limit)
-                        .map { |group| group.size > 1 ? "#{group.first}–#{group.last}" : group.first.to_s }
-
-        message_text = "⚠️ Test coverage is missing for lines: #{ranges.join(', ')}"
-
-        # Attach the message to the first uncovered line
-        Pronto::Message.new(
-          patch.new_file_path,
-          lines.first,
-          :warning,
-          message_text,
-          nil,
-          self.class
-        )
-      end
+      grouped
     end
 
-    private
+    def build_messages(grouped)
+      messages = []
+
+      grouped.each do |patch, lines|
+        linenos = lines.map(&:new_lineno).sort
+        line_ranges = linenos.chunk_while { |i, j| j == i + 1 }.to_a
+
+        # If we have a message per file limit of N, then create N individual messages
+        # We'll take each range and create a separate message for it, up to the limit
+        line_ranges.each do |range|
+          message_text = format_message_text(range)
+
+          # Find the first line in this range for the message
+          first_line_in_range = lines.find { |line| line.new_lineno == range.first }
+
+          messages << Pronto::Message.new(
+            patch.new_file_path,
+            first_line_in_range,
+            :warning,
+            message_text,
+            nil,
+            self.class
+          )
+
+          # Stop if we've reached the limit of messages per file
+          break if messages.count { |m| m.path == patch.new_file_path } >= pronto_messages_per_file_limit
+        end
+      end
+
+      messages
+    end
+
+    def format_message_text(range)
+      # Format the range as "start–end" or just the number if it's a single line
+      formatted_range = range.size > 1 ? "#{range.first}–#{range.last}" : range.first.to_s
+
+      "⚠️ Test coverage is missing for lines: #{formatted_range}"
+    end
 
     def parse_lcov(path)
       uncovered = Hash.new { |h, k| h[k] = [] }
       file = nil
 
-      File.foreach(path) do |line|
-        case line
-        when /^SF:(.+)/
-          file = File.expand_path($1.strip)
-        when /^DA:(\d+),0$/
-          uncovered[file] << $1.to_i if file
-        when /^end_of_record/
-          file = nil
+      begin
+        File.foreach(path) do |line|
+          case line
+          when /^SF:(.+)/
+            file = File.expand_path($1.strip)
+          when /^DA:(\d+),0$/
+            uncovered[file] << $1.to_i if file
+          when /^end_of_record/
+            file = nil
+          end
         end
+      rescue Errno::ENOENT
+        # File not found, raise a more informative error
+        fail "LCOV file not found at #{path}. Make sure your Rust tests were run with coverage enabled."
       end
 
       uncovered

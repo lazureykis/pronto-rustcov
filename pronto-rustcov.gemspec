@@ -1,7 +1,7 @@
 # pronto-rustcov.gemspec
 Gem::Specification.new do |spec|
   spec.name          = "pronto-rustcov"
-  spec.version       = "0.1.6"
+  spec.version       = "0.1.7"
   spec.authors       = ["Pavel Lazureykis"]
   spec.email         = ["pavel@lazureykis.dev"]
 
@@ -15,5 +15,9 @@ Gem::Specification.new do |spec|
 
   spec.add_runtime_dependency "pronto", ">= 0.11.0"
 
-  spec.required_ruby_version = ">= 2.7"
+  spec.add_development_dependency "rspec", "~> 3.12"
+  spec.add_development_dependency "rake", "~> 13.0"
+  spec.add_development_dependency "simplecov", "~> 0.22.0"
+
+  spec.required_ruby_version = ">= 3.2"
 end
