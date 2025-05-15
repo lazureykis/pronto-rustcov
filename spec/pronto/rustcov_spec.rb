@@ -125,13 +125,23 @@ RSpec.describe Pronto::Rustcov do
 
       context 'with files not found in LCOV data' do
         let(:nonexistent_file) { '/path/to/nonexistent/file.rs' }
-        let(:patches) do
-          [
-            create_patch(nonexistent_file, [1, 2, 3])
-          ]
-        end
-
+        let(:patches) { [create_patch(nonexistent_file, [1, 2, 3])] }
         it 'skips files not found in LCOV data' do
+          expect(rustcov.run).to eq([])
+        end
+      end
+
+      context 'when lcov returns falsey value for file' do
+        let(:false_file_path) { '/path/to/src/false_value.rs' }
+        let(:patches) { [create_patch(false_file_path, [1, 2, 3])] }
+        
+        it 'skips processing the file' do
+          # Create a lcov hash with a false value for our file path
+          lcov = Hash.new { |h, k| h[k] = [] }
+          lcov[false_file_path] = false
+          
+          # Call group_patches directly to test the specific branch
+          allow(rustcov).to receive(:parse_lcov).and_return(lcov)
           expect(rustcov.run).to eq([])
         end
       end
