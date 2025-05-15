@@ -1,0 +1,66 @@
+TN:
+# File with many lines but all covered
+SF:/path/to/src/many_lines.rs
+FN:1,many_lines_function
+FNDA:1,many_lines_function
+DA:1,1
+DA:2,1
+DA:3,1
+DA:4,1
+DA:5,1
+# ... more covered lines would be here in a real file
+LH:5
+LF:5
+end_of_record
+
+TN:
+# File with few lines but some uncovered
+SF:/path/to/src/few_lines.rs
+FN:1,few_lines_function
+FNDA:1,few_lines_function
+DA:1,1
+DA:2,1
+DA:3,1
+DA:4,1
+DA:5,0
+DA:6,0
+DA:7,0
+LH:4
+LF:7
+end_of_record
+
+TN:
+# First reference file with mixed coverage
+SF:/path/to/src/lib.rs
+FN:12,some_function
+FNDA:5,some_function
+FN:28,another_function
+FNDA:0,another_function
+DA:12,5
+DA:13,5
+DA:14,0
+DA:15,0
+DA:16,5
+DA:28,0
+DA:29,0
+DA:30,0
+LH:3
+LF:7
+end_of_record
+
+TN:
+# Second reference file with mixed coverage
+SF:/path/to/src/main.rs
+FN:5,main
+FNDA:1,main
+DA:5,1
+DA:6,1
+DA:7,0
+DA:8,0
+DA:9,1
+DA:10,1
+DA:11,1
+DA:12,0
+LH:5
+LF:8
+end_of_record

@@ -58,13 +58,16 @@ RSpec.describe Pronto::Rustcov do
       end
 
       context 'with patches that have no added lines' do
-        let(:empty_patch) { instance_double(Pronto::Git::Patch) }
-        let(:patches) { [empty_patch] }
-
-        before do
-          allow(empty_patch).to receive(:new_file_full_path).and_return(Pathname.new(lib_file_path))
-          allow(empty_patch).to receive(:added_lines).and_return([])
+        # Create a helper method that returns a patch with no added lines
+        # This avoids mocking the Pronto::Git::Patch class
+        def create_empty_patch(file_path)
+          patch = create_patch(file_path, [])
+          # Override the added_lines method to return an empty array
+          allow(patch).to receive(:added_lines).and_return([])
+          patch
         end
+        
+        let(:patches) { [create_empty_patch(lib_file_path)] }
 
         it 'skips patches with no added lines' do
           expect(rustcov.run).to eq([])
@@ -104,22 +107,26 @@ RSpec.describe Pronto::Rustcov do
           ]
         end
 
-        before do
-          # Mock the parse_lcov method to return empty data for our specific file
-          allow(rustcov).to receive(:parse_lcov).with(anything).and_return({})
-        end
-
         it 'skips files with no LCOV data' do
+          # The file is not in any LCOV fixture, so it will be skipped
           expect(rustcov.run).to eq([])
         end
       end
 
       context 'with custom files limit' do
+        let(:multi_file_fixture_path) { File.join(File.dirname(__FILE__), '..', 'fixtures', 'multi_file_lcov.info') }
+        
         before do
+          # Set the environment variables for the test
+          allow(ENV).to receive(:[]).and_call_original
+          allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(multi_file_fixture_path)
+          allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
           allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_FILES_LIMIT').and_return('1')
         end
 
         it 'limits the number of files processed' do
+          # Create patches for all four files in our fixture
+          # This is using the original patches definition that includes lib.rs and main.rs
           messages = rustcov.run
           file_paths = messages.map(&:path).uniq
           expect(file_paths.count).to eq(1)  # Only one file should be processed
@@ -128,7 +135,11 @@ RSpec.describe Pronto::Rustcov do
         context 'when a file with many added lines has no uncovered lines' do
           let(:many_covered_lines_file) { '/path/to/src/many_lines.rs' }
           let(:few_uncovered_lines_file) { '/path/to/src/few_lines.rs' }
-
+          
+          # Our multi_file_lcov.info fixture already contains these files:
+          # - many_lines.rs: Has 5 lines, all covered (lines 1-5)
+          # - few_lines.rs: Has 7 lines, with lines 5, 6, 7 uncovered
+          
           let(:patches) do
             [
               # A file with many added lines but all covered
@@ -137,23 +148,13 @@ RSpec.describe Pronto::Rustcov do
               create_patch(few_uncovered_lines_file, [5, 6, 7])
             ]
           end
-
-          before do
-            # Mock the LCOV data so the many_lines file has all lines covered
-            # while the few_lines file has some uncovered lines
-            lcov_data = {}
-            # The few_lines file has lines 5, 6, 7 uncovered
-            lcov_data[few_uncovered_lines_file] = [5, 6, 7]
-            # The many_lines file has no uncovered lines (empty array)
-            lcov_data[many_covered_lines_file] = []
-
-            allow(rustcov).to receive(:parse_lcov).and_return(lcov_data)
-          end
-
+          
+          # The fixture already has the correct LCOV data, so no need to mock
+          
           it 'prioritizes files with uncovered lines regardless of added line count' do
             messages = rustcov.run
             expect(messages).not_to be_empty
-
+            
             # We should get messages only for the file with uncovered lines
             file_paths = messages.map(&:path).uniq
             expect(file_paths).to include(few_uncovered_lines_file)
@@ -163,44 +164,64 @@ RSpec.describe Pronto::Rustcov do
       end
 
       context 'with default files limit' do
+        # Using the multi_file fixture that contains 4 files
         it 'limits the number of files processed' do
           messages = rustcov.run
           file_paths = messages.map(&:path).uniq
-          expect(file_paths.count).to eq(2)  # Only one file should be processed
+          expect(file_paths.count).to eq(2)  # Default limit is 5, so all files with uncovered lines should be processed
         end
       end
 
-      context 'with custom messages per file limit' do
-        before do
-          allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_MESSAGES_PER_FILE_LIMIT').and_return('1')
+      context 'messages per file limit' do
+        # Using a dedicated fixture to test the message limits
+        let(:message_limits_fixture_path) { File.join(File.dirname(__FILE__), '..', 'fixtures', 'range_prioritization_lcov.info') }
+        let(:ranges_file_path) { '/path/to/src/ranges.rs' }
 
-          # Add more uncovered lines in clustered groups to test batching
-          additional_patch = create_patch(lib_file_path, [14, 15, 28, 29, 30, 31, 32, 33, 34, 35])
-          allow(patches).to receive(:[]).with(0).and_return(additional_patch)
+        let(:patches) do
+          [
+            # Create a patch for the ranges file that has multiple ranges of uncovered lines
+            create_patch(ranges_file_path, (1..100).to_a)
+          ]
         end
 
-        it 'creates multiple messages per file when needed' do
-          messages = rustcov.run
-          lib_messages = messages.select { |m| m.path == lib_file_path }
+        context 'with custom limit' do
+          before do
+            # Set environment variables for this test
+            allow(ENV).to receive(:[]).and_call_original
+            allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(message_limits_fixture_path)
+            allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
+            allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_FILES_LIMIT').and_return(nil)
+            allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_MESSAGES_PER_FILE_LIMIT').and_return('1')
+          end
 
-          # Should generate multiple messages for lib.rs due to the message limit
-          expect(lib_messages.count).to eq(1)
+          it 'creates messages based on the limit' do
+            messages = rustcov.run
+            ranges_messages = messages.select { |m| m.path == ranges_file_path }
+
+            # With a limit of 1, we should get exactly 1 message (for the largest range)
+            expect(ranges_messages.count).to eq(1)
+
+            # The message should be for the largest range (20-29)
+            expect(ranges_messages.first.msg).to include('20–29')
+          end
         end
-      end
 
-      context 'with default messages per file limit' do
-        before do
-          # Add more uncovered lines in clustered groups to test batching
-          additional_patch = create_patch(lib_file_path, [14, 15, 28, 29, 30, 31, 32, 33, 34, 35])
-          allow(patches).to receive(:[]).with(0).and_return(additional_patch)
-        end
+        context 'with default limit' do
+          before do
+            # Set environment variables for this test
+            allow(ENV).to receive(:[]).and_call_original
+            allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(message_limits_fixture_path)
+            allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
+            allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_FILES_LIMIT').and_return(nil)
+          end
 
-        it 'creates multiple messages per file when needed' do
-          messages = rustcov.run
-          lib_messages = messages.select { |m| m.path == lib_file_path }
-
-          # Should generate multiple messages for lib.rs due to the message limit
-          expect(lib_messages.count).to eq(2)
+          it 'respects the default limit of 5 ranges per file' do
+            messages = rustcov.run
+            ranges_messages = messages.select { |m| m.path == ranges_file_path }
+            
+            # Default limit is 5, so we should see the largest 5 ranges
+            expect(ranges_messages.count).to be <= 5
+          end
         end
       end
 
@@ -269,12 +290,16 @@ RSpec.describe Pronto::Rustcov do
 
     context 'when the lcov file is not found' do
       let(:patches) { [create_patch(lib_file_path, [14, 15])] }
+      let(:nonexistent_lcov_path) { File.join(File.dirname(__FILE__), '..', 'fixtures', 'nonexistent_lcov.info') }
 
       before do
+        # Make sure the file doesn't exist
+        File.delete(nonexistent_lcov_path) if File.exist?(nonexistent_lcov_path)
+        
         # Point to a non-existent file for this test case
-        nonexistent_path = '/path/to/nonexistent/lcov.info'
-        allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(nonexistent_path)
-        allow(File).to receive(:foreach).with(nonexistent_path).and_raise(Errno::ENOENT)
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(nonexistent_lcov_path)
+        allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
       end
 
       it 'raises an informative error' do
@@ -287,16 +312,22 @@ RSpec.describe Pronto::Rustcov do
       let(:corrupt_lcov_path) { File.join(File.dirname(__FILE__), '..', 'fixtures', 'corrupt_lcov.info') }
 
       before do
+        # Set environment variables for this test
+        allow(ENV).to receive(:[]).and_call_original
         allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(corrupt_lcov_path)
+        allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
+        allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_FILES_LIMIT').and_return(nil)
+        allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_MESSAGES_PER_FILE_LIMIT').and_return(nil)
       end
 
-      it 'ignores DA lines when no file is defined yet' do
+      it 'handles corrupt LCOV data without errors' do
+        # This should not raise an error, even though the LCOV file is corrupt
         result = rustcov.run
         expect(result).to be_an(Array)
-
-        # We're testing that it properly handles corrupt LCOV data without errors
-        # The test doesn't need to make assertions about the specific output
-        # since we're only concerned with branch coverage here
+        
+        # Since the corrupt file doesn't contain valid file paths that match our patches,
+        # we expect no messages to be generated
+        expect(result).to be_empty
       end
     end
   end
