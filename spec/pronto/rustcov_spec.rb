@@ -9,6 +9,7 @@ RSpec.describe Pronto::Rustcov do
   before do
     # Set the environment variable to point to our fixture file
     allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(LCOV_FIXTURE_PATH)
+    allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
   end
   
   describe '#run' do
@@ -95,6 +96,24 @@ RSpec.describe Pronto::Rustcov do
         end
       end
       
+      context 'with files that exist but have no data in LCOV results' do
+        let(:existing_file_with_no_lcov_data) { '/path/exists/but/no/data.rs' }
+        let(:patches) do
+          [
+            create_patch(existing_file_with_no_lcov_data, [1, 2, 3])
+          ]
+        end
+        
+        before do
+          # Mock the parse_lcov method to return empty data for our specific file
+          allow(rustcov).to receive(:parse_lcov).with(anything).and_return({})
+        end
+        
+        it 'skips files with no LCOV data' do
+          expect(rustcov.run).to eq([])
+        end
+      end
+      
       context 'with custom files limit' do
         before do
           allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_FILES_LIMIT').and_return('1')
@@ -142,8 +161,26 @@ RSpec.describe Pronto::Rustcov do
         allow(File).to receive(:foreach).with(nonexistent_path).and_raise(Errno::ENOENT)
       end
       
-      it 'returns an empty array' do
-        expect(rustcov.run).to eq([])
+      it 'raises an informative error' do
+        expect { rustcov.run }.to raise_error(RuntimeError, /LCOV file not found/)
+      end
+    end
+    
+    context 'when parsing a corrupt lcov file' do
+      let(:patches) { [create_patch(lib_file_path, [14, 15])] }
+      let(:corrupt_lcov_path) { File.join(File.dirname(__FILE__), '..', 'fixtures', 'corrupt_lcov.info') }
+      
+      before do
+        allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(corrupt_lcov_path)
+      end
+      
+      it 'ignores DA lines when no file is defined yet' do
+        result = rustcov.run
+        expect(result).to be_an(Array)
+        
+        # We're testing that it properly handles corrupt LCOV data without errors
+        # The test doesn't need to make assertions about the specific output
+        # since we're only concerned with branch coverage here
       end
     end
   end

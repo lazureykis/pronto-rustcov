@@ -88,8 +88,8 @@ module Pronto
           end
         end
       rescue Errno::ENOENT
-        # File not found, return empty hash
-        return uncovered
+        # File not found, raise a more informative error
+        fail "LCOV file not found at #{path}. Make sure your Rust tests were run with coverage enabled."
       end
 
       uncovered
