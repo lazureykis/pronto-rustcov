@@ -85,6 +85,53 @@ RSpec.describe Pronto::Rustcov do
           expect(rustcov.run).to eq([])
         end
       end
+      
+      context 'with files that have an empty uncovered array' do
+        let(:empty_uncovered_file_path) { '/path/to/src/empty_uncovered.rs' }
+        let(:empty_uncovered_fixture_path) { File.join(File.dirname(__FILE__), '..', 'fixtures', 'empty_uncovered_array_lcov.info') }
+        
+        let(:patches) do
+          [
+            create_patch(empty_uncovered_file_path, [1, 2, 3])  # File exists in LCOV but has empty uncovered array
+          ]
+        end
+        
+        before do
+          # Set environment variables for this test
+          allow(ENV).to receive(:[]).and_call_original
+          allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(empty_uncovered_fixture_path)
+          allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
+        end
+
+        it 'skips files with empty uncovered arrays' do
+          expect(rustcov.run).to eq([])
+        end
+      end
+      
+      context 'with files that have uncovered lines but none match the added lines' do
+        let(:no_matching_lines_file_path) { '/path/to/src/no_matching_lines.rs' }
+        let(:no_matching_lines_fixture_path) { File.join(File.dirname(__FILE__), '..', 'fixtures', 'no_matching_lines_lcov.info') }
+        
+        let(:patches) do
+          [
+            # Patch adds lines 10, 11, 12 which are all covered in the LCOV data
+            # The LCOV data has uncovered lines 50, 51, 52 which aren't part of the patch
+            create_patch(no_matching_lines_file_path, [10, 11, 12])
+          ]
+        end
+        
+        before do
+          # Set environment variables for this test
+          allow(ENV).to receive(:[]).and_call_original
+          allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(no_matching_lines_fixture_path)
+          allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
+        end
+
+        it 'skips files with no matching uncovered lines' do
+          # Since none of the added lines match uncovered lines, no messages should be generated
+          expect(rustcov.run).to eq([])
+        end
+      end
 
       context 'with files not found in LCOV data' do
         let(:nonexistent_file) { '/path/to/nonexistent/file.rs' }
@@ -327,6 +374,25 @@ RSpec.describe Pronto::Rustcov do
         
         # Since the corrupt file doesn't contain valid file paths that match our patches,
         # we expect no messages to be generated
+        expect(result).to be_empty
+      end
+    end
+    
+    context 'when parsing a corrupt lcov file with DA lines before SF lines' do
+      let(:patches) { [create_patch(lib_file_path, [14, 15])] }
+      let(:corrupt_early_da_path) { File.join(File.dirname(__FILE__), '..', 'fixtures', 'corrupt_with_early_da_lcov.info') }
+
+      before do
+        # Set environment variables for this test
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(corrupt_early_da_path)
+        allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
+      end
+
+      it 'ignores DA lines when no file is defined yet' do
+        # This should not raise an error and should properly ignore DA lines that appear before SF lines
+        result = rustcov.run
+        expect(result).to be_an(Array)
         expect(result).to be_empty
       end
     end

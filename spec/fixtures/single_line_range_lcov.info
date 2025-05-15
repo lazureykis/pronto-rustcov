@@ -1,0 +1,14 @@
+TN:
+# File with a single uncovered line
+SF:/path/to/src/single_line_range.rs
+FN:1,single_line_function
+FNDA:1,single_line_function
+# This file has only one uncovered line at line 42
+DA:40,1
+DA:41,1
+DA:42,0
+DA:43,1
+DA:44,1
+LH:4
+LF:5
+end_of_record

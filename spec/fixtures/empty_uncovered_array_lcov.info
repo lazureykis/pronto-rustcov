@@ -1,0 +1,10 @@
+TN:
+# File with entries but an empty array for uncovered lines
+SF:/path/to/src/empty_uncovered.rs
+FN:1,empty_function
+FNDA:1,empty_function
+# This file has entries in LCOV but uncovered will be an empty array
+# because there are no DA lines with 0 as the second value
+LH:0
+LF:0
+end_of_record
