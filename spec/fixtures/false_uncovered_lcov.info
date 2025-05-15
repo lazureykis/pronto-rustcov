@@ -1,7 +1,0 @@
-TN:
-# This file has a file entry that will result in uncovered = false when accessed
-SF:/path/to/src/false_uncovered.rs
-FNDA:0,false_uncovered_function
-# We're not adding any DA lines, just a simple SF entry
-# This should create a scenario where uncovered is falsey when accessed
-end_of_record
