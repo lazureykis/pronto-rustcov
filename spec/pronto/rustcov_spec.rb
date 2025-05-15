@@ -124,6 +124,42 @@ RSpec.describe Pronto::Rustcov do
           file_paths = messages.map(&:path).uniq
           expect(file_paths.count).to eq(1)  # Only one file should be processed
         end
+        
+        context 'when a file with many added lines has no uncovered lines' do
+          let(:many_covered_lines_file) { '/path/to/src/many_lines.rs' }
+          let(:few_uncovered_lines_file) { '/path/to/src/few_lines.rs' }
+          
+          let(:patches) do
+            [
+              # A file with many added lines but all covered
+              create_patch(many_covered_lines_file, (1..100).to_a),
+              # A file with fewer added lines but some uncovered
+              create_patch(few_uncovered_lines_file, [5, 6, 7])
+            ]
+          end
+          
+          before do
+            # Mock the LCOV data so the many_lines file has all lines covered
+            # while the few_lines file has some uncovered lines
+            lcov_data = {}
+            # The few_lines file has lines 5, 6, 7 uncovered
+            lcov_data[few_uncovered_lines_file] = [5, 6, 7]
+            # The many_lines file has no uncovered lines (empty array)
+            lcov_data[many_covered_lines_file] = []
+            
+            allow(rustcov).to receive(:parse_lcov).and_return(lcov_data)
+          end
+          
+          it 'prioritizes files with uncovered lines regardless of added line count' do
+            messages = rustcov.run
+            expect(messages).not_to be_empty
+            
+            # We should get messages only for the file with uncovered lines
+            file_paths = messages.map(&:path).uniq
+            expect(file_paths).to include(few_uncovered_lines_file)
+            expect(file_paths).not_to include(many_covered_lines_file)
+          end
+        end
       end
 
       context 'with default files limit' do

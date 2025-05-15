@@ -33,7 +33,7 @@ module Pronto
     def group_patches(patches, lcov)
       grouped = Hash.new { |h, k| h[k] = [] }
 
-      patches.sort_by { |patch| -patch.added_lines.count }.take(pronto_files_limit).each do |patch|
+      patches.each do |patch|
         next unless patch.added_lines.any?
         file_path = patch.new_file_full_path.to_s
         uncovered = lcov[file_path]
@@ -46,7 +46,7 @@ module Pronto
         end
       end
 
-      grouped
+      grouped.sort_by { |_, lines| -lines.count }.take(pronto_files_limit)
     end
 
     def build_messages(grouped)
