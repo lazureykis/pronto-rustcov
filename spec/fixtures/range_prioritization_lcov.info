@@ -1,0 +1,37 @@
+TN:
+SF:/path/to/src/ranges.rs
+FN:1,test_function
+FNDA:1,test_function
+# Small range at beginning (lines 5-6)
+DA:5,0
+DA:6,0
+# Small range that appears early (lines 10-11)
+DA:10,0
+DA:11,0
+# Large range in middle (lines 20-29)
+DA:20,0
+DA:21,0
+DA:22,0
+DA:23,0
+DA:24,0
+DA:25,0
+DA:26,0
+DA:27,0
+DA:28,0
+DA:29,0
+# Medium range at end (lines 40-44)
+DA:40,0
+DA:41,0
+DA:42,0
+DA:43,0
+DA:44,0
+# Small range that should be excluded due to limit (lines 50-51)
+DA:50,0
+DA:51,0
+# Covered lines (should be ignored)
+DA:60,1
+DA:61,1
+DA:62,1
+LH:3
+LF:25
+end_of_record

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    pronto-rustcov (0.1.7)
+    pronto-rustcov (0.1.8)
       pronto (>= 0.11.0)
 
 GEM

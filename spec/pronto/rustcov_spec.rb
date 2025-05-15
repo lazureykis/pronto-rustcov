@@ -124,11 +124,11 @@ RSpec.describe Pronto::Rustcov do
           file_paths = messages.map(&:path).uniq
           expect(file_paths.count).to eq(1)  # Only one file should be processed
         end
-        
+
         context 'when a file with many added lines has no uncovered lines' do
           let(:many_covered_lines_file) { '/path/to/src/many_lines.rs' }
           let(:few_uncovered_lines_file) { '/path/to/src/few_lines.rs' }
-          
+
           let(:patches) do
             [
               # A file with many added lines but all covered
@@ -137,7 +137,7 @@ RSpec.describe Pronto::Rustcov do
               create_patch(few_uncovered_lines_file, [5, 6, 7])
             ]
           end
-          
+
           before do
             # Mock the LCOV data so the many_lines file has all lines covered
             # while the few_lines file has some uncovered lines
@@ -146,14 +146,14 @@ RSpec.describe Pronto::Rustcov do
             lcov_data[few_uncovered_lines_file] = [5, 6, 7]
             # The many_lines file has no uncovered lines (empty array)
             lcov_data[many_covered_lines_file] = []
-            
+
             allow(rustcov).to receive(:parse_lcov).and_return(lcov_data)
           end
-          
+
           it 'prioritizes files with uncovered lines regardless of added line count' do
             messages = rustcov.run
             expect(messages).not_to be_empty
-            
+
             # We should get messages only for the file with uncovered lines
             file_paths = messages.map(&:path).uniq
             expect(file_paths).to include(few_uncovered_lines_file)
@@ -201,6 +201,68 @@ RSpec.describe Pronto::Rustcov do
 
           # Should generate multiple messages for lib.rs due to the message limit
           expect(lib_messages.count).to eq(2)
+        end
+      end
+
+      context 'prioritizing ranges by size and position' do
+        let(:ranges_file_path) { '/path/to/src/ranges.rs' }
+        let(:ranges_fixture_path) { File.join(File.dirname(__FILE__), '..', 'fixtures', 'range_prioritization_lcov.info') }
+        let(:patches) do
+          [
+            # Create a patch with all the lines from our fixture
+            # The fixture has these ranges of uncovered lines:
+            # - A small range at the beginning (lines 5-6): 2 lines
+            # - A small range that appears early (lines 10-11): 2 lines
+            # - A large range in middle (lines 20-29): 10 lines
+            # - A medium range at end (lines 40-44): 5 lines
+            # - Another small range (lines 50-51): 2 lines - should be excluded due to limit of 3
+            create_patch(ranges_file_path, (1..100).to_a)  # All line numbers in the fixture
+          ]
+        end
+        
+        before do
+          # Set the environment variables for this test
+          allow(ENV).to receive(:[]).and_call_original
+          allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_LCOV_PATH').and_return(ranges_fixture_path)
+          allow(ENV).to receive(:[]).with('LCOV_PATH').and_return(nil)
+          allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_FILES_LIMIT').and_return(nil)
+          allow(ENV).to receive(:[]).with('PRONTO_RUSTCOV_MESSAGES_PER_FILE_LIMIT').and_return('3')
+        end
+
+        it 'prioritizes ranges by size and position' do
+          messages = rustcov.run
+          ranges_messages = messages.select { |m| m.path == ranges_file_path }
+
+          # We should have exactly 3 messages due to our limit of 3
+          expect(ranges_messages.count).to eq(3)
+          
+          # Extract the line ranges from messages
+          extracted_ranges = ranges_messages.map do |message|
+            # Extract range from message text using regex
+            if message.msg =~ /(\d+)–(\d+)/
+              [$1.to_i, $2.to_i]
+            else
+              # Single line message
+              [message.msg.scan(/\d+/).first.to_i]
+            end
+          end
+          
+          # First message should be for the largest range (20-29)
+          expect(extracted_ranges[0]).to eq([20, 29])
+          
+          # Second message should be for the medium range (40-44)
+          expect(extracted_ranges[1]).to eq([40, 44])
+          
+          # Third should be for one of the small ranges that appears earlier (5-6)
+          # Due to sorting on range start when ranges are of equal size
+          expect(extracted_ranges[2]).to eq([5, 6])
+          
+          # The ranges at (50-51) and (10-11) should be excluded due to the limit of 3
+          all_mentioned_lines = ranges_messages.map(&:msg).join.scan(/\d+/).map(&:to_i)
+          expect(all_mentioned_lines).not_to include(50)
+          expect(all_mentioned_lines).not_to include(51)
+          expect(all_mentioned_lines).not_to include(10)
+          expect(all_mentioned_lines).not_to include(11)
         end
       end
     end

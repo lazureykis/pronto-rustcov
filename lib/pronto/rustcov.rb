@@ -56,9 +56,11 @@ module Pronto
         linenos = lines.map(&:new_lineno).sort
         line_ranges = linenos.chunk_while { |i, j| j == i + 1 }.to_a
 
+        best_ranges = line_ranges.sort_by { |range| [-range.size, range.first] }.take(pronto_messages_per_file_limit)
+
         # If we have a message per file limit of N, then create N individual messages
         # We'll take each range and create a separate message for it, up to the limit
-        line_ranges.each do |range|
+        best_ranges.each do |range|
           message_text = format_message_text(range)
 
           # Find the first line in this range for the message
@@ -72,9 +74,6 @@ module Pronto
             nil,
             self.class
           )
-
-          # Stop if we've reached the limit of messages per file
-          break if messages.count { |m| m.path == patch.new_file_path } >= pronto_messages_per_file_limit
         end
       end
 
