@@ -1,0 +1,15 @@
+TN:
+# File with uncovered lines that don't match added lines in patches
+SF:/path/to/src/no_matching_lines.rs
+FN:1,no_matching_function
+FNDA:1,no_matching_function
+# This file has uncovered lines 50, 51, 52, but the patch will add lines 10, 11, 12
+DA:10,1
+DA:11,1
+DA:12,1
+DA:50,0
+DA:51,0
+DA:52,0
+LH:3
+LF:6
+end_of_record

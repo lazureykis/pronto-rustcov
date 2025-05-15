@@ -1,0 +1,13 @@
+TN:
+# This corrupt LCOV file has DA: lines before any SF: line is defined
+# This targets the 'if file' condition in parse_lcov
+DA:1,0
+DA:2,0
+DA:3,0
+# Only after those DA lines do we define a file
+SF:/path/to/src/corrupt_with_early_da.rs
+FN:1,corrupt_function
+FNDA:1,corrupt_function
+LH:0
+LF:3
+end_of_record

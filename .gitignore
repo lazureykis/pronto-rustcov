@@ -2,3 +2,4 @@
 .DS_Store
 /coverage/
 .rspec_status
+Gemfile.lock
