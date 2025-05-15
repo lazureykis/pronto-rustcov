@@ -20,6 +20,14 @@ RSpec.describe Pronto::Rustcov do
       end
     end
     
+    context 'with nil patches' do
+      let(:patches) { nil }
+      
+      it 'returns an empty array' do
+        expect(rustcov.run).to eq([])
+      end
+    end
+    
     context 'with patches for files with uncovered lines' do
       let(:patches) do
         [
@@ -45,6 +53,45 @@ RSpec.describe Pronto::Rustcov do
           expect(message.msg).to include('Test coverage is missing')
           expect([lib_file_path, main_file_path]).to include(message.path)
           expect(message.level).to eq(:warning)
+        end
+      end
+      
+      context 'with patches that have no added lines' do
+        let(:empty_patch) { instance_double(Pronto::Git::Patch) }
+        let(:patches) { [empty_patch] }
+        
+        before do
+          allow(empty_patch).to receive(:new_file_full_path).and_return(Pathname.new(lib_file_path))
+          allow(empty_patch).to receive(:added_lines).and_return([])
+        end
+        
+        it 'skips patches with no added lines' do
+          expect(rustcov.run).to eq([])
+        end
+      end
+      
+      context 'with files that have no uncovered lines' do
+        let(:patches) do
+          [
+            create_patch(lib_file_path, [12, 13, 16])  # These are fully covered lines in the fixture
+          ]
+        end
+        
+        it 'skips files with no uncovered lines' do
+          expect(rustcov.run).to eq([])
+        end
+      end
+      
+      context 'with files not found in LCOV data' do
+        let(:nonexistent_file) { '/path/to/nonexistent/file.rs' }
+        let(:patches) do
+          [
+            create_patch(nonexistent_file, [1, 2, 3])
+          ]
+        end
+        
+        it 'skips files not found in LCOV data' do
+          expect(rustcov.run).to eq([])
         end
       end
       

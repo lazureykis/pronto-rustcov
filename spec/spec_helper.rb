@@ -1,3 +1,12 @@
+require 'simplecov'
+SimpleCov.start do
+  add_filter '/spec/'
+  enable_coverage :branch
+  primary_coverage :line
+  # Generate HTML and JSON reports for CI
+  formatter SimpleCov::Formatter::HTMLFormatter
+end
+
 require 'bundler/setup'
 require 'pronto/rustcov'
 require 'fileutils'
