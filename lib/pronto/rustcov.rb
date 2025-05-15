@@ -58,12 +58,7 @@ module Pronto
 
         # Group the ranges into batches based on the messages_per_file_limit
         line_ranges.each_slice(pronto_messages_per_file_limit).each_with_index do |ranges_batch, batch_index|
-          # Format each range as "start–end" or just the number if it's a single line
-          formatted_ranges = ranges_batch.map do |group|
-            group.size > 1 ? "#{group.first}–#{group.last}" : group.first.to_s
-          end
-
-          message_text = "⚠️ Test coverage is missing for lines: #{formatted_ranges.join(', ')}"
+          message_text = format_message_text(ranges_batch)
 
           # Find the first line in this batch for the message
           first_line_in_batch = lines.find { |line| line.new_lineno == ranges_batch.first.first }
@@ -80,6 +75,15 @@ module Pronto
       end
 
       messages
+    end
+
+    def format_message_text(ranges_batch)
+      # Format each range as "start–end" or just the number if it's a single line
+      formatted_ranges = ranges_batch.map do |group|
+        group.size > 1 ? "#{group.first}–#{group.last}" : group.first.to_s
+      end
+
+      "⚠️ Test coverage is missing for lines: #{formatted_ranges.join(', ')}"
     end
 
     def parse_lcov(path)
