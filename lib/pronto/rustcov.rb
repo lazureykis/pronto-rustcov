@@ -26,7 +26,7 @@ module Pronto
       lcov = parse_lcov(lcov_path)
 
       grouped = group_patches(@patches, lcov)
-      
+
       build_messages(grouped)
     end
 
@@ -56,34 +56,36 @@ module Pronto
         linenos = lines.map(&:new_lineno).sort
         line_ranges = linenos.chunk_while { |i, j| j == i + 1 }.to_a
 
-        # Group the ranges into batches based on the messages_per_file_limit
-        line_ranges.each_slice(pronto_messages_per_file_limit).each_with_index do |ranges_batch, batch_index|
-          message_text = format_message_text(ranges_batch)
+        # If we have a message per file limit of N, then create N individual messages
+        # We'll take each range and create a separate message for it, up to the limit
+        line_ranges.each do |range|
+          message_text = format_message_text(range)
 
-          # Find the first line in this batch for the message
-          first_line_in_batch = lines.find { |line| line.new_lineno == ranges_batch.first.first }
+          # Find the first line in this range for the message
+          first_line_in_range = lines.find { |line| line.new_lineno == range.first }
 
           messages << Pronto::Message.new(
             patch.new_file_path,
-            first_line_in_batch,
+            first_line_in_range,
             :warning,
             message_text,
             nil,
             self.class
           )
+
+          # Stop if we've reached the limit of messages per file
+          break if messages.count { |m| m.path == patch.new_file_path } >= pronto_messages_per_file_limit
         end
       end
 
       messages
     end
 
-    def format_message_text(ranges_batch)
-      # Format each range as "start–end" or just the number if it's a single line
-      formatted_ranges = ranges_batch.map do |group|
-        group.size > 1 ? "#{group.first}–#{group.last}" : group.first.to_s
-      end
+    def format_message_text(range)
+      # Format the range as "start–end" or just the number if it's a single line
+      formatted_range = range.size > 1 ? "#{range.first}–#{range.last}" : range.first.to_s
 
-      "⚠️ Test coverage is missing for lines: #{formatted_ranges.join(', ')}"
+      "⚠️ Test coverage is missing for lines: #{formatted_range}"
     end
 
     def parse_lcov(path)
