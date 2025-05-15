@@ -81,10 +81,11 @@ module Pronto
     end
 
     def format_message_text(range)
-      # Format the range as "start–end" or just the number if it's a single line
-      formatted_range = range.size > 1 ? "#{range.first}–#{range.last}" : range.first.to_s
-
-      "⚠️ Test coverage is missing for lines: #{formatted_range}"
+      if range.size > 1
+        "⚠️ Test coverage is missing for lines: #{range.first}–#{range.last}"
+      else
+        "⚠️ Test coverage is missing"
+      end
     end
 
     def parse_lcov(path)
