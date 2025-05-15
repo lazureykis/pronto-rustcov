@@ -1,0 +1,12 @@
+example_id                                                    | status | run_time        |
+------------------------------------------------------------- | ------ | --------------- |
+./spec/pronto/rustcov_one_message_per_file_spec.rb[1:1:1:1]   | passed | 0.00027 seconds |
+./spec/pronto/rustcov_one_message_per_file_spec.rb[1:1:2:1:1] | failed | 0.00249 seconds |
+./spec/pronto/rustcov_one_message_per_file_spec.rb[1:1:2:2:1] | failed | 0.00109 seconds |
+./spec/pronto/rustcov_one_message_per_file_spec.rb[1:1:2:2:2] | failed | 0.00094 seconds |
+./spec/pronto/rustcov_parse_lcov_spec.rb[1:1:1]               | passed | 0.00111 seconds |
+./spec/pronto/rustcov_parse_lcov_spec.rb[1:1:2:1]             | passed | 0.00053 seconds |
+./spec/pronto/rustcov_spec.rb[1:1:1]                          | passed | 0.00004 seconds |
+./spec/pronto/rustcov_spec.rb[1:1:2]                          | passed | 0.00011 seconds |
+./spec/pronto/rustcov_spec.rb[1:2:1]                          | passed | 0.00004 seconds |
+./spec/pronto/rustcov_spec.rb[1:2:2]                          | passed | 0.00007 seconds |

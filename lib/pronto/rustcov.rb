@@ -34,24 +34,36 @@ module Pronto
         end
       end
 
-      grouped.map do |patch, lines|
+      messages = []
+
+      grouped.each do |patch, lines|
         linenos = lines.map(&:new_lineno).sort
-        ranges = linenos.chunk_while { |i, j| j == i + 1 }
-                        .take(pronto_messages_per_file_limit)
-                        .map { |group| group.size > 1 ? "#{group.first}–#{group.last}" : group.first.to_s }
-
-        message_text = "⚠️ Test coverage is missing for lines: #{ranges.join(', ')}"
-
-        # Attach the message to the first uncovered line
-        Pronto::Message.new(
-          patch.new_file_path,
-          lines.first,
-          :warning,
-          message_text,
-          nil,
-          self.class
-        )
+        line_ranges = linenos.chunk_while { |i, j| j == i + 1 }.to_a
+        
+        # Group the ranges into batches based on the messages_per_file_limit
+        line_ranges.each_slice(pronto_messages_per_file_limit).each_with_index do |ranges_batch, batch_index|
+          # Format each range as "start–end" or just the number if it's a single line
+          formatted_ranges = ranges_batch.map do |group|
+            group.size > 1 ? "#{group.first}–#{group.last}" : group.first.to_s
+          end
+          
+          message_text = "⚠️ Test coverage is missing for lines: #{formatted_ranges.join(', ')}"
+          
+          # Find the first line in this batch for the message
+          first_line_in_batch = lines.find { |line| line.new_lineno == ranges_batch.first.first }
+          
+          messages << Pronto::Message.new(
+            patch.new_file_path,
+            first_line_in_batch,
+            :warning,
+            message_text,
+            nil,
+            self.class
+          )
+        end
       end
+
+      messages
     end
 
     private
